@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Audio Recording and Transcription Interface">
+    <meta name="author" content="Student">
+    <title>Speech-to-Text Converter</title>
+    <style>
+        body { font-family: sans-serif; padding: 2rem; max-width: 600px; margin: auto; }
+        .recording { background-color: #ff4d4d; color: white; }
+        #transcription-result { margin-top: 1rem; padding: 1rem; border: 1px solid #ccc; min-height: 50px; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Speech-to-Text Converter</h1>
+    </header>
+
+    <main>
+        <section>
+            <p id="status">Status: Ready</p>
+            <button id="recordBtn">Start Recording</button>
+            <button id="stopBtn" disabled>Stop Recording</button>
+        </section>
+
+        <section>
+            <h2>Transcription:</h2>
+            <div id="transcription-result">Your text will appear here...</div>
+        </section>
+    </main>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+
+        const recordBtn = document.getElementById('recordBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusText = document.getElementById('status');
+        const resultDiv = document.getElementById('transcription-result');
+
+        recordBtn.addEventListener('click', async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = event => {
+                    if (event.data.size > 0) audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const formData = new FormData();
+                    formData.append('audio', audioBlob, 'recording.webm');
+
+                    statusText.textContent = "Status: Uploading and transcribing...";
+                    
+                    try {
+                        const response = await fetch('/api/upload', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        const text = await response.text();
+                        resultDiv.textContent = text;
+                        statusText.textContent = "Status: Ready";
+                    } catch (error) {
+                        resultDiv.textContent = "Error transcribing audio.";
+                        statusText.textContent = "Status: Error";
+                    }
+                };
+
+                mediaRecorder.start();
+                statusText.textContent = "Status: Recording...";
+                recordBtn.classList.add('recording');
+                recordBtn.disabled = true;
+                stopBtn.disabled = false;
+            } catch (err) {
+                alert("Microphone access denied or unavailable.");
+            }
+        });
+
+        stopBtn.addEventListener('click', () => {
+            mediaRecorder.stop();
+            recordBtn.classList.remove('recording');
+            recordBtn.disabled = false;
+            stopBtn.disabled = true;
+        });
+    </script>
+</body>
+</html>
